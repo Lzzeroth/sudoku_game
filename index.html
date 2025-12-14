@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数独游戏</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=Ma+Shan+Zheng&family=ZCOOL+KuaiLe&family=ZCOOL+QingKe+HuangYou&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#64748b',
+                        'secondary': '#94a3b8',
+                        'accent': '#475569',
+                        'bg-light': '#f1f5f9',
+                        'bg-dark': '#cbd5e1',
+                    },
+                    fontFamily: {
+                        'chinese-handwriting': ['Ma Shan Zheng', 'cursive'],
+                        'chinese-playful': ['ZCOOL KuaiLe', 'cursive'],
+                        'chinese-modern': ['ZCOOL QingKe HuangYou', 'sans-serif'],
+                        'noto-sans': ['Noto Sans SC', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+        
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        @keyframes titleGlow {
+            0%, 100% { 
+                filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.6)) drop-shadow(0 0 30px rgba(147, 51, 234, 0.4));
+                transform: translateY(0px) scale(1);
+            }
+            50% { 
+                filter: drop-shadow(0 0 25px rgba(147, 51, 234, 0.8)) drop-shadow(0 0 40px rgba(59, 130, 246, 0.6));
+                transform: translateY(-3px) scale(1.02);
+            }
+        }
+        
+        @keyframes titleFloat {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+        }
+        
+        @keyframes glow {
+            0%, 100% { filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.5)); }
+            50% { filter: drop-shadow(0 0 20px rgba(147, 51, 234, 0.8)); }
+        }
+        
+        @keyframes slideInFromTop {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* 模态弹窗动画 */
+        .modal-show {
+            opacity: 1 !important;
+        }
+        
+        .modal-show #customModal {
+            transform: scale(1) !important;
+        }
+        
+        .animate-gradient {
+            background: linear-gradient(-45deg, #e0f2fe, #dbeafe, #e0e7ff, #f1f5f9);
+            background-size: 400% 400%;
+            animation: gradient 15s ease infinite;
+        }
+        
+        .title-glow {
+            animation: titleFloat 3s ease-in-out infinite, glow 2s ease-in-out infinite;
+        }
+        
+        .slide-in {
+            animation: slideInFromTop 0.8s ease-out;
+        }
+        
+        /* 按钮悬停效果增强 */
+        .btn-enhanced {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn-enhanced::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+        
+        .btn-enhanced:hover::before {
+            width: 400px;
+            height: 300px;
+        }
+        
+        .cell-highlight {
+            background-color: #bfdbfe !important;
+        }
+        
+        .cell-same-number {
+            background-color: #ddd6fe !important;
+        }
+        
+        .cell-error {
+            background-color: #fecaca !important;
+        }
+        
+        /* 数独单元格样式 - 确保1:1宽高比 */
+        .sudoku-cell {
+            /* 现代浏览器使用 aspect-ratio */
+            aspect-ratio: 1 / 1;
+            min-width: 28px;
+            min-height: 28px;
+        }
+        
+        /* 兼容不支持 aspect-ratio 的浏览器（Safari < 15, iOS < 15） */
+        @supports not (aspect-ratio: 1 / 1) {
+            .sudoku-cell {
+                position: relative;
+                width: 100%;
+                height: 0;
+                padding-bottom: 100%;
+                min-width: 28px;
+            }
+            
+            /* 内容需要绝对定位 */
+            .sudoku-cell::after {
+                content: attr(data-value);
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+        }
+        
+        /* 移动端优化 - 更大的最小尺寸 */
+        @media (max-width: 640px) {
+            .sudoku-cell {
+                min-width: 32px;
+                min-height: 32px;
+            }
+            
+            @supports not (aspect-ratio: 1 / 1) {
+                .sudoku-cell {
+                    min-width: 32px;
+                }
+            }
+        }
+        
+        /* 平板端优化 */
+        @media (min-width: 641px) and (max-width: 1023px) {
+            .sudoku-cell {
+                min-width: 36px;
+                min-height: 36px;
+            }
+            
+            @supports not (aspect-ratio: 1 / 1) {
+                .sudoku-cell {
+                    min-width: 36px;
+                }
+            }
+        }
+        
+        /* 桌面端优化 */
+        @media (min-width: 1024px) {
+            .sudoku-cell {
+                min-width: 40px;
+                min-height: 40px;
+            }
+            
+            @supports not (aspect-ratio: 1 / 1) {
+                .sudoku-cell {
+                    min-width: 40px;
+                }
+            }
+        }
+        
+        .cell-fixed {
+            font-weight: 700;
+            color: #1e293b;
+        }
+        
+        .cell-user {
+            color: #3b82f6;
+        }
+        
+        .particle {
+            position: absolute;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        
+        @keyframes celebrate {
+            0% { transform: scale(0) rotate(0deg); opacity: 1; }
+            100% { transform: scale(1) rotate(360deg); opacity: 0; }
+        }
+        
+        .confetti {
+            animation: celebrate 1s ease-out forwards;
+        }
+        
+        /* 自定义滚动条样式 */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 1px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+            border-radius: 10px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: transparent;
+            border-radius: 10px;
+            transition: background 0.3s ease;
+        }
+        
+        /* 数独棋盘样式 - 优化纵横比 */
+        #sudokuBoard {
+            width: 100%;
+            max-width: min(90vw, 90vh);
+            max-height: min(90vw, 90vh);
+            margin: 0 auto;
+            display: grid;
+            place-self: center;
+        }
+        
+        /* 桌面端优化 */
+        @media (min-width: 768px) {
+            #sudokuBoard {
+                max-width: min(500px, 80vh);
+                max-height: min(500px, 80vh);
+            }
+        }
+        
+        /* 超大屏幕优化 */
+        @media (min-width: 1024px) {
+            #sudokuBoard {
+                max-width: min(600px, 75vh);
+                max-height: min(600px, 75vh);
+            }
+        }
+        
+        /* 隐藏滚动条但保持滚动功能 */
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        
+        /* 关卡卡片样式 - 响应式 */
+        .level-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        /* 桌面端悬停效果 */
+        @media (hover: hover) and (pointer: fine) {
+            .level-card:hover {
+                transform: translateY(-8px) scale(1.02);
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            }
+        }
+        
+        /* 移动端点击效果 */
+        @media (hover: none) and (pointer: coarse) {
+            .level-card:active {
+                transform: scale(0.95);
+            }
+        }
+        
+        .level-card.locked {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .level-card.locked:hover,
+        .level-card.locked:active {
+            transform: none;
+        }
+        
+        /* 移动端优化 - 触摸滚动 */
+        #levelContainer {
+            -webkit-overflow-scrolling: touch;
+            scroll-snap-type: x proximity;
+        }
+        
+        /* 关卡卡片滚动对齐 */
+        @media (max-width: 640px) {
+            .level-card {
+                scroll-snap-align: start;
+            }
+        }
+        
+        /* 星级动画 */
+        @keyframes starPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+        
+        .star-filled {
+            animation: starPulse 0.5s ease;
+        }
+        
+        /* 关卡缩略图网格动画 */
+        @keyframes gridFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        
+        .level-thumbnail {
+            animation: gridFadeIn 0.3s ease;
+        }
+        
+        /* 解锁状态徽章 - 响应式 */
+        .unlock-badge {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border-radius: 50%;
+            width: 26px;
+            height: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            animation: float 2s ease-in-out infinite;
+            z-index: 10;
+        }
+        
+        @media (min-width: 640px) {
+            .unlock-badge {
+                top: -8px;
+                right: -8px;
+                width: 32px;
+                height: 32px;
+                font-size: 16px;
+            }
+        }
+        
+        .lock-badge {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            background: linear-gradient(135deg, #64748b, #475569);
+            color: white;
+            border-radius: 50%;
+            width: 26px;
+            height: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 10;
+        }
+        
+        @media (min-width: 640px) {
+            .lock-badge {
+                top: -8px;
+                right: -8px;
+                width: 32px;
+                height: 32px;
+                font-size: 14px;
+            }
+        }
+
+        .flow-blue {
+            border: 2px solid #00ffff !important;
+            box-shadow: inset 0 0 5px 0 #00ffff !important;
+        }
+        .flow-green {
+            border: 2px solid #00ff41 !important;
+            box-shadow: inset 0 0 5px 0 #00ff41 !important;
+        }
+        
+        /* 记忆盲解模式样式 */
+        .cell-hidden {
+            background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+            position: relative;
+        }
+        
+        .cell-hidden::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(
+                45deg,
+                transparent,
+                transparent 10px,
+                rgba(148, 163, 184, 0.1) 10px,
+                rgba(148, 163, 184, 0.1) 20px
+            );
+        }
+    </style>
+</head>
+<body class="min-h-screen animate-gradient overflow-x-hidden">
+    <!-- 动态背景粒子容器 -->
+    <canvas id="backgroundCanvas" class="fixed top-0 left-0 w-full h-full opacity-30" style="z-index: 1;"></canvas>
+    
+    <!-- 主容器 -->
+    <div id="app" class="relative min-h-screen flex items-center justify-center p-4" style="z-index: 10; pointer-events: none;">
+        <!-- 主菜单界面 -->
+        <div id="mainMenu" class="hidden pointer-events-auto">
+            <div class="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-8 md:p-12 max-w-md w-full transform transition-all">
+                <div class="text-center mb-8">
+                    <div class="relative inline-block">
+                        <!-- 装饰性背景圆圈 -->
+                        <div class="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-purple-400/20 rounded-full blur-xl transform scale-150"></div>
+                        <!-- 主标题 -->
+                        <h1 class="relative text-5xl md:text-6xl font-black text-center bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent title-glow slide-in font-chinese-handwriting tracking-wider"
+                            style="font-family: 'ZCOOL QingKe HuangYou', 'Noto Sans SC', sans-serif; letter-spacing: 0.1em; animation: titleGlow 3s ease-in-out infinite, slideInFromTop 0.8s ease-out;">
+                            数独游戏
+                        </h1>
+                    </div>
+                </div>
+                
+                <!-- 游戏模式说明 -->
+                <div class="mb-8 text-center">
+                    <!-- 副标题装饰 -->
+                    <div class="relative mt-2 text-sm md:text-base text-slate-500 font-medium">
+                        🧩 挑战你的逻辑思维
+                    </div>
+                    <p class="text-slate-600 text-sm leading-relaxed">
+                        选择你的游戏模式，开始精彩的数独挑战之旅
+                    </p>
+                </div>
+                
+                <div class="space-y-4">
+                    <button id="quickGameBtn" class="group relative w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transform transition-all duration-300 hover:scale-105 active:scale-95 overflow-hidden btn-enhanced">
+                        <div class="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+                        <span class="relative text-xl flex items-center justify-center">
+                            <span class="mr-2 group-hover:rotate-12 transition-transform duration-300">⚡</span>
+                            快速游戏
+                        </span>
+                    </button>
+                    
+                    <button id="levelModeBtn" class="group relative w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transform transition-all duration-300 hover:scale-105 active:scale-95 overflow-hidden btn-enhanced">
+                        <div class="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+                        <span class="relative text-xl flex items-center justify-center">
+                            <span class="mr-2 group-hover:rotate-12 transition-transform duration-300">🎯</span>
+                            关卡模式
+                        </span>
+                    </button>
+                    
+                    <button id="creativeModeBtn" class="group relative w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transform transition-all duration-300 hover:scale-105 active:scale-95 overflow-hidden btn-enhanced">
+                        <div class="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+                        <span class="relative text-xl flex items-center justify-center">
+                            <span class="mr-2 group-hover:rotate-12 transition-transform duration-300">🧠</span>
+                            创意数独
+                        </span>
+                    </button>
+                    
+                    <button id="historyBtn" class="group relative w-full bg-gradient-to-r from-slate-500 to-slate-600 hover:from-slate-600 hover:to-slate-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transform transition-all duration-300 hover:scale-105 active:scale-95 overflow-hidden btn-enhanced">
+                        <div class="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+                        <span class="relative text-xl flex items-center justify-center">
+                            <span class="mr-2 group-hover:rotate-12 transition-transform duration-300">📊</span>
+                            历史记录
+                        </span>
+                    </button>
+                    
+                    <button id="helpBtn" class="group relative w-full bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transform transition-all duration-300 hover:scale-105 active:scale-95 overflow-hidden btn-enhanced">
+                        <div class="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+                        <span class="relative text-xl flex items-center justify-center">
+                            <span class="mr-2 group-hover:rotate-12 transition-transform duration-300">❓</span>
+                            游戏说明
+                        </span>
+                    </button>
+                </div>
+                
+                <!-- 底部装饰 -->
+                <div class="mt-8 flex justify-center space-x-2">
+                    <div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0s;"></div>
+                    <div class="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style="animation-delay: 0.2s;"></div>
+                    <div class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0.4s;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 难度选择界面 -->
+        <div id="difficultyMenu" class="hidden pointer-events-auto">
+            <div class="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-8 md:p-12 max-w-md w-full">
+                <h2 class="text-3xl font-bold text-center mb-6 text-slate-700">选择难度</h2>
+                <div class="space-y-3">
+                    <button data-difficulty="easy" class="difficulty-btn w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                        <span class="text-lg">😊 简单 (40-45个数字)</span>
+                    </button>
+                    <button data-difficulty="medium" class="difficulty-btn w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                        <span class="text-lg">🤔 中等 (30-35个数字)</span>
+                    </button>
+                    <button data-difficulty="hard" class="difficulty-btn w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                        <span class="text-lg">😰 困难 (25-30个数字)</span>
+                    </button>
+                    <button data-difficulty="expert" class="difficulty-btn w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                        <span class="text-lg">🔥 专家 (20-25个数字)</span>
+                    </button>
+                </div>
+                <button id="backFromDifficulty" class="w-full mt-6 bg-slate-400 hover:bg-slate-500 text-white font-bold py-2 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                    返回
+                </button>
+            </div>
+        </div>
+
+        <!-- 创意数独模式选择界面 -->
+        <div id="creativeModeMenu" class="hidden pointer-events-auto">
+            <div class="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-8 md:p-12 max-w-md w-full">
+                <h2 class="text-3xl font-bold text-center mb-6 text-slate-700">创意数独</h2>
+                <p class="text-center text-slate-600 mb-6">选择你想挑战的创意模式</p>
+                <div class="space-y-4">
+                    <button id="memoryModeBtn" class="group relative w-full bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transform transition-all duration-300 hover:scale-105 active:scale-95 overflow-hidden btn-enhanced">
+                        <div class="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+                        <span class="relative text-xl flex items-center justify-center">
+                            <span class="mr-2 group-hover:rotate-12 transition-transform duration-300">🧠</span>
+                            记忆盲解
+                        </span>
+                        <span class="relative text-sm mt-1 opacity-90">记忆初始数字，挑战你的记忆力</span>
+                    </button>
+                    
+                    <button id="killerModeBtn" class="group relative w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transform transition-all duration-300 hover:scale-105 active:scale-95 overflow-hidden btn-enhanced">
+                        <div class="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+                        <span class="relative text-xl flex items-center justify-center">
+                            <span class="mr-2 group-hover:rotate-12 transition-transform duration-300">🔪</span>
+                            杀手数独
+                        </span>
+                        <span class="relative text-sm mt-1 opacity-90">区域运算挑战，考验逻辑推理</span>
+                    </button>
+                </div>
+                <button id="backFromCreativeMode" class="w-full mt-6 bg-slate-400 hover:bg-slate-500 text-white font-bold py-2 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                    返回
+                </button>
+            </div>
+        </div>
+
+        <!-- 记忆盲解难度选择界面 -->
+        <div id="memoryDifficultyMenu" class="hidden pointer-events-auto">
+            <div class="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-8 md:p-12 max-w-md w-full">
+                <h2 class="text-3xl font-bold text-center mb-6 text-slate-700">记忆盲解 - 选择难度</h2>
+                <div class="space-y-3">
+                    <button data-memory-difficulty="easy" class="memory-difficulty-btn w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                        <span class="text-lg">😊 简单 (6x6, 10-15个数字)</span>
+                    </button>
+                    <button data-memory-difficulty="medium" class="memory-difficulty-btn w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                        <span class="text-lg">🤔 中等 (6x6, 15-20个数字)</span>
+                    </button>
+                    <button data-memory-difficulty="hard" class="memory-difficulty-btn w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                        <span class="text-lg">😰 困难 (9x9, 25-35个数字)</span>
+                    </button>
+                    <button data-memory-difficulty="expert" class="memory-difficulty-btn w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                        <span class="text-lg">🔥 专家 (9x9, 40-50个数字)</span>
+                    </button>
+                </div>
+                <button id="backFromMemoryDifficulty" class="w-full mt-6 bg-slate-400 hover:bg-slate-500 text-white font-bold py-2 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                    返回
+                </button>
+            </div>
+        </div>
+
+        <!-- 杀手数独难度选择界面 -->
+        <div id="killerDifficultyMenu" class="hidden pointer-events-auto">
+            <div class="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-8 md:p-12 max-w-md w-full">
+                <h2 class="text-3xl font-bold text-center mb-6 text-slate-700">杀手数独 - 选择难度</h2>
+                <div class="space-y-3">
+                    <button data-killer-difficulty="easy" class="killer-difficulty-btn w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                        <span class="text-lg">😊 简单 (加法求和，40-45个数字)</span>
+                    </button>
+                    <button data-killer-difficulty="medium" class="killer-difficulty-btn w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                        <span class="text-lg">🤔 中等 (加减混合，30-35个数字)</span>
+                    </button>
+                    <button data-killer-difficulty="hard" class="killer-difficulty-btn w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                        <span class="text-lg">😰 困难 (加减乘混合，25-30个数字)</span>
+                    </button>
+                    <button data-killer-difficulty="expert" class="killer-difficulty-btn w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                        <span class="text-lg">🔥 专家 (加减乘除混合，20-25个数字)</span>
+                    </button>
+                </div>
+                <button id="backFromKillerDifficulty" class="w-full mt-6 bg-slate-400 hover:bg-slate-500 text-white font-bold py-2 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                    返回
+                </button>
+            </div>
+        </div>
+
+        <!-- 关卡选择界面 -->
+        <div id="levelMenu" class="hidden pointer-events-auto w-full max-w-7xl px-4 sm:px-6">
+            <div class="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-4 sm:p-6 md:p-8">
+                <div class="flex items-center justify-between mb-4 sm:mb-6">
+                    <h2 class="text-2xl sm:text-3xl font-bold text-slate-700">选择关卡</h2>
+                    <button id="backFromLevels" class="bg-slate-400 hover:bg-slate-500 text-white font-bold py-2 px-4 sm:px-6 rounded-xl shadow-lg transform transition-all hover:scale-105 text-sm sm:text-base">
+                        返回
+                    </button>
+                </div>
+                
+                <!-- 关卡进度概览 -->
+                <div class="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-3 sm:p-4 mb-4 sm:mb-6">
+                    <div class="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0">
+                        <div class="flex items-center gap-3 sm:gap-4 w-full sm:w-auto justify-around sm:justify-start">
+                            <div class="text-center">
+                                <p class="text-xs sm:text-sm text-slate-600">已完成</p>
+                                <p id="completedLevels" class="text-xl sm:text-2xl font-bold text-green-600">0</p>
+                            </div>
+                            <div class="w-px h-10 sm:h-12 bg-slate-300"></div>
+                            <div class="text-center">
+                                <p class="text-xs sm:text-sm text-slate-600">已解锁</p>
+                                <p id="unlockedLevels" class="text-xl sm:text-2xl font-bold text-blue-600">1</p>
+                            </div>
+                            <div class="w-px h-10 sm:h-12 bg-slate-300"></div>
+                            <div class="text-center">
+                                <p class="text-xs sm:text-sm text-slate-600">总关卡</p>
+                                <p class="text-xl sm:text-2xl font-bold text-slate-700">50</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 w-full sm:w-auto">
+                            <span class="text-xs sm:text-sm text-slate-600">总进度:</span>
+                            <div class="flex-1 sm:w-32 h-3 bg-slate-200 rounded-full overflow-hidden">
+                                <div id="progressBar" class="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                            <span id="progressPercent" class="text-xs sm:text-sm font-bold text-slate-700 min-w-[2.5rem] text-right">0%</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 横向滑动关卡列表 -->
+                <div class="relative">
+                    <!-- 左箭头 - 桌面端显示 -->
+                    <button id="scrollLeft" class="hidden md:block absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 hover:bg-white shadow-lg rounded-full p-3 transform transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <svg class="w-6 h-6 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                        </svg>
+                    </button>
+                    
+                    <!-- 关卡容器 -->
+                    <div id="levelContainer" class="overflow-x-auto scroll-smooth hide-scrollbar px-0 md:px-12">
+                        <div id="levelGrid" class="flex gap-3 sm:gap-4 md:gap-6 py-4">
+                            <!-- 关卡卡片将通过JS动态生成 -->
+                        </div>
+                    </div>
+                    
+                    <!-- 右箭头 - 桌面端显示 -->
+                    <button id="scrollRight" class="hidden md:block absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 hover:bg-white shadow-lg rounded-full p-3 transform transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <svg class="w-6 h-6 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- 难度图例 -->
+                <div class="mt-4 sm:mt-6 flex flex-wrap justify-center gap-2 sm:gap-4 text-xs sm:text-sm">
+                    <div class="flex items-center gap-1.5 sm:gap-2">
+                        <div class="w-3 h-3 sm:w-4 sm:h-4 bg-green-500 rounded"></div>
+                        <span class="text-slate-600">简单 (1-10)</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 sm:gap-2">
+                        <div class="w-3 h-3 sm:w-4 sm:h-4 bg-yellow-500 rounded"></div>
+                        <span class="text-slate-600">中等 (11-25)</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 sm:gap-2">
+                        <div class="w-3 h-3 sm:w-4 sm:h-4 bg-orange-500 rounded"></div>
+                        <span class="text-slate-600">困难 (26-40)</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-4 h-4 bg-red-500 rounded"></div>
+                        <span class="text-slate-600">专家 (41-50)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 游戏界面 -->
+        <div id="gameScreen" class="hidden w-full max-w-6xl pointer-events-auto">
+            <div class="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-4 md:p-8">
+                <!-- 游戏信息栏 -->
+                <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
+                    <div class="flex items-center gap-4">
+                        <button id="backToMenu" class="bg-slate-500 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-lg shadow-lg transform transition-all hover:scale-105">
+                            ← 返回
+                        </button>
+                        <div class="bg-blue-100 px-4 py-2 rounded-lg">
+                            <span class="font-bold text-slate-700">难度: </span>
+                            <span id="currentDifficulty" class="text-blue-600 font-bold">简单</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <!-- 记忆倒计时（仅记忆盲解模式显示） -->
+                        <div id="memoryTimerDisplay" class="hidden bg-pink-100 px-4 py-2 rounded-lg">
+                            <span class="font-bold text-slate-700">🧠 记忆时间: </span>
+                            <span id="memoryTimer" class="text-pink-600 font-bold">10</span>
+                        </div>
+                        <!-- 翻牌次数（仅记忆盲解模式显示） -->
+                        <div id="flipCardsDisplay" class="hidden bg-rose-100 px-4 py-2 rounded-lg">
+                            <span class="font-bold text-slate-700">🃏 翻牌: </span>
+                            <span id="flipCardsLeft" class="text-rose-600 font-bold">3</span>
+                        </div>
+                        <div class="bg-purple-100 px-4 py-2 rounded-lg">
+                            <span class="font-bold text-slate-700">⏱️ </span>
+                            <span id="timer" class="text-purple-600 font-bold">00:00</span>
+                        </div>
+                        <div id="hintsDisplay" class="bg-green-100 px-4 py-2 rounded-lg">
+                            <span class="font-bold text-slate-700">💡 提示: </span>
+                            <span id="hintsLeft" class="text-green-600 font-bold">5</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 游戏主体区域 -->
+                <div class="flex flex-col lg:flex-row gap-6">
+                    <!-- 数独棋盘 -->
+                    <div class="flex-1 flex justify-center">
+                        <div id="sudokuBoard" class="inline-block bg-slate-800 p-2 rounded-xl shadow-2xl">
+                            <!-- 棋盘将通过JS动态生成 -->
+                        </div>
+                    </div>
+
+                    <!-- 控制面板 -->
+                    <div class="lg:w-64 space-y-4">
+                        <!-- 数字输入面板 -->
+                        <div class="bg-slate-100 p-4 rounded-xl shadow-lg">
+                            <h3 class="text-lg font-bold text-slate-700 mb-3 text-center">选择数字</h3>
+                            <div id="numberPad" class="grid grid-cols-3 gap-2">
+                                <!-- 数字按钮将通过JS动态生成 -->
+                            </div>
+                        </div>
+
+                        <!-- 操作按钮 -->
+                        <div class="space-y-2">
+                            <button id="hintBtn" class="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                                💡 提示
+                            </button>
+                            <button id="pauseBtn" class="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                                ⏸️ 暂停
+                            </button>
+                            <button id="restartBtn" class="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                                🔄 重新开始
+                            </button>
+                            <button id="newGameBtn" class="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                                🎮 新游戏
+                            </button>
+                            <button id="eraseBtn" class="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                                ❌ 擦除
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 历史记录界面 -->
+        <div id="historyScreen" class="hidden pointer-events-auto">
+            <div class="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-8 md:p-12 max-w-2xl w-full">
+                <h2 class="text-3xl font-bold text-center mb-6 text-slate-700">历史记录</h2>
+                <div id="historyList" class="space-y-3 mb-6 max-h-96 overflow-y-auto">
+                    <!-- 历史记录将通过JS动态生成 -->
+                </div>
+                <button id="backFromHistory" class="w-full bg-slate-400 hover:bg-slate-500 text-white font-bold py-2 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                    返回
+                </button>
+            </div>
+        </div>
+
+        <!-- 暂停遮罩 -->
+        <div id="pauseOverlay" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center pointer-events-auto">
+            <div class="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full mx-4">
+                <h2 class="text-3xl font-bold text-center mb-6 text-slate-700">游戏已暂停</h2>
+                <button id="resumeBtn" class="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                    继续游戏
+                </button>
+            </div>
+        </div>
+
+        <!-- 完成遮罩 -->
+        <div id="completeOverlay" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center pointer-events-auto">
+            <div class="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full mx-4">
+                <h2 class="text-4xl font-bold text-center mb-4 text-green-600">🎉 恭喜完成！</h2>
+                <div class="text-center space-y-2 mb-6">
+                    <p class="text-xl text-slate-700">用时: <span id="finalTime" class="font-bold text-blue-600">00:00</span></p>
+                    <p class="text-xl text-slate-700"><span id="hintsUsed" class="font-bold text-purple-600">0</span></p>
+                </div>
+                <div class="space-y-3">
+                    <button id="nextLevelBtn" class="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                        下一关
+                    </button>
+                    <button id="backToMenuFromComplete" class="w-full bg-gradient-to-r from-slate-500 to-slate-600 hover:from-slate-600 hover:to-slate-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                        返回主菜单
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 自定义模态弹窗 -->
+        <div id="customModalOverlay" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 pointer-events-auto transition-opacity duration-300 opacity-0">
+            <div id="customModal" class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-md w-full mx-4 transform transition-all duration-300 scale-95">
+                <!-- 图标 -->
+                <div class="flex justify-center mb-4">
+                    <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center shadow-lg">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                </div>
+                
+                <!-- 标题 -->
+                <h3 id="modalTitle" class="text-2xl font-bold text-center mb-3 text-slate-800">提示</h3>
+                
+                <!-- 消息内容 -->
+                <p id="modalMessage" class="text-center text-slate-600 mb-6 leading-relaxed">确定要执行此操作吗？</p>
+                
+                <!-- 按钮组 -->
+                <div class="flex gap-3">
+                    <button id="modalCancelBtn" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-3 px-6 rounded-xl shadow-md transform transition-all hover:scale-105 active:scale-95">
+                        取消
+                    </button>
+                    <button id="modalConfirmBtn" class="flex-1 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105 active:scale-95">
+                        确定
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 广告弹窗 -->
+        <div id="adOverlay" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 pointer-events-auto">
+            <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-md w-full mx-4 relative">
+                <!-- 右上角关闭按钮 -->
+                <button id="closeAdEarly" class="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-slate-200 hover:bg-slate-300 text-slate-600 hover:text-slate-800 rounded-full transition-all transform hover:scale-110 active:scale-95" title="关闭广告（不获得提示）">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+                
+                <h2 class="text-2xl md:text-3xl font-bold text-center mb-4 text-slate-700">获取额外机会</h2>
+                
+                <!-- 倒计时显示 -->
+                <div class="bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl p-5 mb-5 text-center">
+                    <p class="text-white text-sm mb-2">广告剩余时间</p>
+                    <div class="text-5xl font-bold text-white" id="adCountdown">15</div>
+                    <p class="text-white text-sm mt-2">秒</p>
+                </div>
+                
+                <!-- 广告内容区域 -->
+                <div class="bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl p-5 mb-5 min-h-[300px] flex flex-col items-center justify-center">
+                    <div class="text-center space-y-3">
+                        <div class="text-4xl animate-bounce">🎮</div>
+                        <p class="text-lg font-bold text-slate-700">数独游戏</p>
+                        <p class="text-sm text-slate-600">锻炼大脑，提升逻辑思维能力</p>
+                        <p class="text-sm text-slate-600">广告位招商</p>
+                        <div class="flex gap-2 justify-center mt-4">
+                            <div class="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                            <div class="w-3 h-3 bg-purple-500 rounded-full animate-pulse" style="animation-delay: 0.2s"></div>
+                            <div class="w-3 h-3 bg-pink-500 rounded-full animate-pulse" style="animation-delay: 0.4s"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 进度条 -->
+                <div class="mb-4">
+                    <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                        <div id="adProgress" class="h-full bg-gradient-to-r from-green-500 to-blue-500 transition-all duration-1000" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <!-- 关闭按钮（倒计时结束后显示） -->
+                <button id="closeAdBtn" class="hidden w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                    ✓ 领取机会
+                </button>
+                
+                <!-- 提示文字 -->
+                <p class="text-center text-sm text-slate-500 mt-4">观看完整广告后可获得1次额外机会</p>
+            </div>
+        </div>
+
+        <!-- 游戏说明遮罩 -->
+        <div id="helpOverlay" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 pointer-events-auto">
+            <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto custom-scrollbar">
+                <h2 class="text-3xl font-bold text-center mb-6 text-slate-700">📖 游戏说明</h2>
+                
+                <!-- 游戏规则 -->
+                <div class="mb-6">
+                    <h3 class="text-xl font-bold text-blue-600 mb-3 flex items-center">
+                        <span class="mr-2">🎯</span>游戏规则
+                    </h3>
+                    <div class="bg-blue-50 p-4 rounded-lg space-y-2 text-slate-700">
+                        <p>• 数独是一个9×9的方格游戏，分为9个3×3的宫格</p>
+                        <p>• 目标是在空白格子中填入1-9的数字</p>
+                        <p>• 每一行的数字不能重复</p>
+                        <p>• 每一列的数字不能重复</p>
+                        <p>• 每个3×3宫格内的数字不能重复</p>
+                    </div>
+                </div>
+
+                <!-- 游戏模式 -->
+                <div class="mb-6">
+                    <h3 class="text-xl font-bold text-purple-600 mb-3 flex items-center">
+                        <span class="mr-2">🎮</span>游戏模式
+                    </h3>
+                    <div class="bg-purple-50 p-4 rounded-lg space-y-3 text-slate-700">
+                        <div>
+                            <p class="font-bold text-purple-700">⚡ 快速游戏</p>
+                            <p class="text-sm ml-4">选择难度后立即开始，适合快速挑战</p>
+                        </div>
+                        <div>
+                            <p class="font-bold text-purple-700">🎯 关卡模式</p>
+                            <p class="text-sm ml-4">共50个关卡，难度逐步提升，完成关卡解锁下一关</p>
+                        </div>
+                        <div>
+                            <p class="font-bold text-green-700">🧠 创意数独</p>
+                            <p class="text-sm ml-4">包含记忆盲解和杀手数独两种创意玩法</p>
+                            <p class="text-sm ml-6 mt-1">• <span class="font-semibold">记忆盲解</span>：看题10秒后隐藏初始数字，挑战记忆力和推理能力。提供3次翻牌机会（用完可观看广告续次数），点击初始数字位置可短暂显示1秒</p>
+                            <p class="text-sm ml-6 mt-1">• <span class="font-semibold">杀手数独</span>：在标准数独规则基础上，棋盘被划分为多个不规则区域（用背景颜色区分），每个区域左上角显示目标值，鼠标悬停可查看等式（如：□ + □ = 12），区域内数字无重复且需满足运算结果</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 难度说明 -->
+                <div class="mb-6">
+                    <h3 class="text-xl font-bold text-green-600 mb-3 flex items-center">
+                        <span class="mr-2">📊</span>难度等级
+                    </h3>
+                    <div class="bg-green-50 p-4 rounded-lg space-y-3 text-slate-700">
+                        <div>
+                            <p class="font-semibold text-green-700 mb-1">经典模式：</p>
+                            <p class="ml-4">• <span class="font-bold text-green-600">😊 简单</span>：提供40-45个初始数字</p>
+                            <p class="ml-4">• <span class="font-bold text-yellow-600">🤔 中等</span>：提供30-35个初始数字</p>
+                            <p class="ml-4">• <span class="font-bold text-orange-600">😰 困难</span>：提供25-30个初始数字</p>
+                            <p class="ml-4">• <span class="font-bold text-red-600">🔥 专家</span>：提供20-25个初始数字</p>
+                        </div>
+                        <div>
+                            <p class="font-semibold text-pink-700 mb-1">记忆盲解：</p>
+                            <p class="ml-4">• <span class="font-bold text-green-600">😊 简单</span>：6x6棋盘，10-15个初始数字</p>
+                            <p class="ml-4">• <span class="font-bold text-yellow-600">🤔 中等</span>：6x6棋盘，15-20个初始数字</p>
+                            <p class="ml-4">• <span class="font-bold text-orange-600">😰 困难</span>：9x9棋盘，25-35个初始数字</p>
+                            <p class="ml-4">• <span class="font-bold text-red-600">🔥 专家</span>：9x9棋盘，40-50个初始数字</p>
+                        </div>
+                        <div>
+                            <p class="font-semibold text-cyan-700 mb-1">杀手数独：</p>
+                            <p class="ml-4">• <span class="font-bold text-green-600">😊 简单</span>：加法求和，40-45个初始数字</p>
+                            <p class="ml-4">• <span class="font-bold text-yellow-600">🤔 中等</span>：加减混合，30-35个初始数字</p>
+                            <p class="ml-4">• <span class="font-bold text-orange-600">😰 困难</span>：加减乘混合，25-30个初始数字</p>
+                            <p class="ml-4">• <span class="font-bold text-red-600">🔥 专家</span>：加减乘除混合，20-25个初始数字</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 操作指南 -->
+                <div class="mb-6">
+                    <h3 class="text-xl font-bold text-orange-600 mb-3 flex items-center">
+                        <span class="mr-2">⌨️</span>操作指南
+                    </h3>
+                    <div class="bg-orange-50 p-4 rounded-lg space-y-3 text-slate-700">
+                        <div>
+                            <p class="font-bold text-orange-700">鼠标/触摸操作</p>
+                            <p class="text-sm ml-4">• 点击空白格子选中</p>
+                            <p class="text-sm ml-4">• 点击数字按钮填入数字</p>
+                            <p class="text-sm ml-4">• 点击"擦除"按钮清除选中格子</p>
+                        </div>
+                        <div>
+                            <p class="font-bold text-orange-700">键盘操作（电脑端）</p>
+                            <p class="text-sm ml-4">• 数字键1-9：填入对应数字</p>
+                            <p class="text-sm ml-4">• 方向键：移动选中格子</p>
+                            <p class="text-sm ml-4">• Delete/Backspace：清除选中格子</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 辅助功能 -->
+                <div class="mb-6">
+                    <h3 class="text-xl font-bold text-indigo-600 mb-3 flex items-center">
+                        <span class="mr-2">🛠️</span>辅助功能
+                    </h3>
+                    <div class="bg-indigo-50 p-4 rounded-lg space-y-2 text-slate-700">
+                        <p>• <span class="font-bold">💡 提示</span>：自动填入一个正确数字（经典模式和杀手数独每局限5次，用完后可观看15秒广告获得额外提示；记忆盲解模式不可用）</p>
+                        <p>• <span class="font-bold">🃏 翻牌</span>：记忆盲解模式专属，点击隐藏的初始数字可短暂显示1秒（每局限3次，用完后可观看15秒广告获得额外次数）</p>
+                        <p>• <span class="font-bold">⏸️ 暂停</span>：暂停游戏和计时器</p>
+                        <p>• <span class="font-bold">🔄 重新开始</span>：清除所有填入的数字</p>
+                        <p>• <span class="font-bold">🎮 新游戏</span>：生成新的题目</p>
+                        <p>• <span class="font-bold">❌ 擦除</span>：清除选中格子的数字</p>
+                    </div>
+                </div>
+
+                <!-- 视觉提示 -->
+                <div class="mb-6">
+                    <h3 class="text-xl font-bold text-pink-600 mb-3 flex items-center">
+                        <span class="mr-2">👁️</span>视觉提示
+                    </h3>
+                    <div class="bg-pink-50 p-4 rounded-lg space-y-2 text-slate-700">
+                        <p>• <span class="inline-block w-4 h-4 bg-blue-200 rounded mr-2"></span>蓝色高亮：同行/列/宫格</p>
+                        <p>• <span class="inline-block w-4 h-4 bg-purple-200 rounded mr-2"></span>紫色高亮：相同数字</p>
+                        <p>• <span class="inline-block w-4 h-4 bg-red-200 rounded mr-2"></span>红色标记：数字冲突</p>
+                        <p>• <span class="font-bold text-slate-800">黑色数字</span>：题目初始数字（不可修改）</p>
+                        <p>• <span class="font-bold text-blue-600">蓝色数字</span>：玩家填入的数字（可修改）</p>
+                    </div>
+                </div>
+
+                <!-- 关闭按钮 -->
+                <button id="closeHelp" class="w-full bg-gradient-to-r from-slate-500 to-slate-600 hover:from-slate-600 hover:to-slate-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform transition-all hover:scale-105">
+                    关闭
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript模块 -->
+    <script type="module" src="./js/main.js"></script>
+</body>
+</html>
